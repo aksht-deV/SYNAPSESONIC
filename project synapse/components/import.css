@@ -1,0 +1,77 @@
+.import-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(420px, calc(100% - 28px));
+  max-height: 90svh;
+  padding: 24px;
+  color: white;
+  background: #151613;
+}
+.import-dialog::backdrop {
+  background: #050505b8;
+  backdrop-filter: blur(5px);
+}
+.import-head,
+.sample-deck {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.import-dialog h2 {
+  font-size: 25px;
+  letter-spacing: -1px;
+  margin: 12px 0 4px;
+}
+.import-dialog p,
+.dropzone small {
+  font-size: 12px;
+  color: #b8bcb2;
+}
+.dropzone {
+  width: 100%;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  background: #1b1e17;
+  border: 1px dashed #60694b;
+  border-radius: 9px;
+  padding: 25px 10px;
+  margin: 21px 0;
+}
+.dropzone svg,
+.sample-deck svg:first-child {
+  color: var(--lime);
+}
+.dropzone strong {
+  font-weight: 550;
+  font-size: 15px;
+}
+.dropzone.drag,
+.dropzone:hover {
+  border-color: var(--lime);
+}
+.import-dialog h3 {
+  font-size: 13px;
+  margin: 18px 0 8px;
+}
+.sample-deck {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 10px;
+  font-size: 13px;
+  padding: 11px;
+  margin-top: 6px;
+  border: 1px solid #383b32;
+  border-radius: 6px;
+}
+.sample-deck:hover {
+  background: #22251e;
+}
+.sample-deck svg:last-child {
+  margin-left: auto;
+}
+.import-dialog p[role="alert"] {
+  color: #f7b5ad;
+}

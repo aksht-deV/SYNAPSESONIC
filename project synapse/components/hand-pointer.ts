@@ -1,40 +1,102 @@
-type Landmark = { x: number; y: number }
-const clamp = (v: number) => Math.max(0, Math.min(1, v))
-
-export function handPointer(cursor: HTMLElement, status: (text: string) => void, orbit: (dx:number,dy:number)=>void, decay: (v:number)=>void) {
-  let x = 0, y = 0, seen = false, armed = false, held = false, closeFrames = 0
-  let target: HTMLElement | null = null, hover: HTMLElement | null = null
-  function highlight(el: HTMLElement | null) {
-    if (hover === el) return
-    hover?.removeAttribute('data-hand-hover'); hover = el
-    hover?.setAttribute('data-hand-hover', '')
-  }
-  function reset() {
-    cursor.hidden = true; seen = armed = held = false; closeFrames = 0; target = null; highlight(null)
-  }
-  function frame(points: Landmark[] | undefined, aspect:number) {
-    if (!points?.length) { reset(); status('Show one hand'); return }
-    const d = (i:number,j:number)=>Math.hypot((points[i].x-points[j].x)*aspect,points[i].y-points[j].y)
-    const ratio=d(4,8)/Math.max(.02,d(5,17)), open=ratio>.48, closed=ratio<.29
-    const aimX=clamp((.91-points[8].x)/.82)*(innerWidth-1), aimY=clamp((points[8].y-.09)/.82)*(innerHeight-1)
-    const lastX=x,lastY=y; x=seen?x+(aimX-x)*.55:aimX; y=seen?y+(aimY-y)*.55:aimY; seen=true
-    cursor.hidden=false;cursor.style.left=`${x}px`;cursor.style.top=`${y}px`
-    const hit=document.elementFromPoint(x,y); const candidate=hit?.closest<HTMLElement>('button:not(:disabled),a[href],input[type=range],.decay,.neural-space canvas')??null
-    const item=candidate?.closest('.studio')?candidate:null
-    highlight(held?target:item)
-    if(open){armed=true;held=false;target=null;closeFrames=0}
-    closeFrames=closed?closeFrames+1:0
-    if(armed&&!held&&closeFrames>=2){
-      armed=false;held=true;target=item
-      if(target?.matches('.upload')){status('Click Upload PDF to open the file picker');return}
-      if(target?.matches('button,a'))target.click()
+type Point = { x: number; y: number };
+export type GestureActions = {
+  orbit: (dx: number, dy: number) => void;
+  aim: (x: number, y: number) => void;
+  pinch: (x?: number, y?: number) => void;
+  answer: (i: number) => void;
+};
+const chains = [
+  [0, 1, 2, 3, 4],
+  [0, 5, 6, 7, 8],
+  [5, 9, 13, 17, 0],
+  [9, 10, 11, 12],
+  [13, 14, 15, 16],
+  [17, 18, 19, 20],
+];
+export function handPointer(
+  canvas: HTMLCanvasElement,
+  actions: () => GestureActions,
+  status: (s: string) => void,
+) {
+  const ctx = canvas.getContext("2d");
+  let pose = "",
+    since = 0,
+    fired = false,
+    last: Point | null = null;
+  return (points: Point[] | undefined, now: number, aspect: number) => {
+    const w = canvas.width,
+      h = canvas.height;
+    ctx?.clearRect(0, 0, w, h);
+    if (!points || points.length < 21) {
+      pose = "";
+      last = null;
+      fired = false;
+      status("Show one hand");
+      return;
     }
-    cursor.dataset.held=String(held)
-    if(held&&target?.closest('.decay')){const rect=document.querySelector('#decay')!.getBoundingClientRect();decay(Math.round(clamp((x-rect.left)/rect.width)*100));status('Adjusting Time-Decay')}
-    else if(held&&target?.matches('canvas')){orbit(x-lastX,y-lastY);status('Orbiting field')}
-    else if(held&&target?.matches('.upload'))status('Click Upload PDF to choose a file')
-    else if(!held && (y<22 || y>innerHeight-22) && !item){window.scrollBy(0,y<22?-16:16);status('Scrolling')}
-    else status(held?'Release to rearm':armed?'Point & pinch':'Open thumb and index')
-  }
-  return {frame,reset}
+    if (ctx) {
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      for (const path of chains) {
+        ctx.beginPath();
+        path.forEach((k, i) => {
+          const p = points[k];
+          if (i) ctx.lineTo(p.x * w, p.y * h);
+          else ctx.moveTo(p.x * w, p.y * h);
+        });
+        ctx.stroke();
+      }
+      for (const k of [4, 8, 12, 16, 20]) {
+        ctx.fillStyle = "#c6f432";
+        ctx.beginPath();
+        ctx.arc(points[k].x * w, points[k].y * h, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    const d = (i: number, j: number) =>
+        Math.hypot(
+          (points[i].x - points[j].x) * aspect,
+          points[i].y - points[j].y,
+        ),
+      width = Math.max(0.02, d(5, 17)),
+      count = [8, 12, 16, 20].filter(
+        (k) => d(k, 0) > d(k - 2, 0) * 1.15,
+      ).length,
+      thumb = d(4, 17) > width * 1.4,
+      gesture =
+        d(4, 8) < width * 0.28
+          ? "pinch"
+          : count === 4 && thumb
+            ? "palm"
+            : String(count),
+      p = {
+        x: Math.max(0, Math.min(1, 1 - points[8].x)),
+        y: Math.max(0, Math.min(1, points[8].y)),
+      };
+    actions().aim(p.x, p.y);
+    if (gesture !== pose) {
+      pose = gesture;
+      since = now;
+      fired = false;
+      last = null;
+    }
+    if (pose === "palm" && last)
+      actions().orbit((p.x - last.x) * 500, (p.y - last.y) * 350);
+    last = p;
+    if (!fired && now - since > (pose === "pinch" ? 150 : 550)) {
+      if (pose === "pinch") actions().pinch(p.x, p.y);
+      else if (Number(pose) >= 1 && Number(pose) <= 4)
+        actions().answer(Number(pose) - 1);
+      fired = true;
+    }
+    status(
+      pose === "pinch"
+        ? "Pinch · select"
+        : pose === "palm"
+          ? "Palm · orbit"
+          : count
+            ? `Hold ${count} · ${String.fromCharCode(64 + count)}`
+            : "Show one hand",
+    );
+  };
 }

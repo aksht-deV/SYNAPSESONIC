@@ -1,25 +1,315 @@
-import type {RefObject} from 'react'
-import type {Recall} from './use-recall'
-type V=[number,number,number]
-type Config={recall:Recall;mode:number;decay:number;paused:boolean;zoom:number}
-const tau=Math.PI*2
-function rng(seed:number){return()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296)}
-function geometry(q:number){const rand=rng(1683+q*311),points:V[]=[[0,0,0]],links:number[][]=[],branches:number[]=[],tips:number[]=[];for(let b=0;b<4;b++){const a=[-2.55,-.65,.5,2.7][b]+q*.11;const tip:V=[Math.cos(a)*1.2,Math.sin(a)*.86,(rand()-.5)*.8];let prev=[0,0,0];for(let k=1;k<=6;k++){const t=k/6,cur:number[]=[];for(let j=0;j<3;j++){const spread=(.075+.10*Math.sin(t*Math.PI));const v=tip.map((x,d)=>x*t+(rand()-.5)*spread*2+(d===1?.10*Math.sin(t*5+b):0)) as V;cur.push(points.length);points.push(v);branches.push(b);links.push([prev[j],cur[j],b],[prev[(j+1)%3],cur[j],b]);if(j)links.push([cur[j-1],cur[j],b])}prev=cur}tips.push(prev[1]);for(let k=0;k<13;k++){const i=1+b*31+Math.floor(rand()*17),v=points[i];points.push([v[0]+(rand()-.5)*.55,v[1]+(rand()-.5)*.48,v[2]+(rand()-.5)*.6]);branches.push(b);links.push([i,points.length-1,b])}}return {points,links,branches,tips}}
-export function mountField(canvas:HTMLCanvasElement,pins:HTMLDivElement,config:RefObject<Config>,camera:RefObject<{yaw:number;pitch:number}>,setZoom:(fn:(n:number)=>number)=>void){
- const ctx=canvas.getContext('2d');if(!ctx)return;const g=ctx,rand=rng(743),stars=Array.from({length:430},()=>[rand(),rand(),rand(),rand()]);const dust=Array.from({length:720},()=>{const a=rand()*tau,b=Math.acos(2*rand()-1),r=.08+rand()**2*.65;return [Math.cos(a)*Math.sin(b)*r,Math.sin(a)*Math.sin(b)*r,Math.cos(b)*r] as V});let w=1,h=1,dpr=1,id=0,t=0,last=0,q=-1,net=geometry(0),yaw=0,pitch=0,zoom=1,phase=0,eventKey='',drag:{x:number;y:number}|null=null
- const size=()=>{w=canvas.clientWidth;h=canvas.clientHeight;dpr=Math.min(devicePixelRatio,2);canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr)};const ro=new ResizeObserver(size);ro.observe(canvas);size()
- const down=(e:PointerEvent)=>{drag={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId)},move=(e:PointerEvent)=>{if(!drag)return;camera.current.yaw+=(e.clientX-drag.x)*.008;camera.current.pitch=Math.max(-1.3,Math.min(1.3,camera.current.pitch+(e.clientY-drag.y)*.008));drag={x:e.clientX,y:e.clientY}},up=()=>{drag=null},wheel=(e:WheelEvent)=>{e.preventDefault();setZoom(z=>Math.max(.7,Math.min(1.6,z-e.deltaY*.001)))};canvas.addEventListener('pointerdown',down);canvas.addEventListener('pointermove',move);canvas.addEventListener('lostpointercapture',up);canvas.addEventListener('wheel',wheel,{passive:false})
- function frame(now:number){id=requestAnimationFrame(frame);if(document.hidden||!w||!h)return;const {recall,mode,paused,decay,zoom:target}=config.current,dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)t+=dt;const key=`${recall.q}:${recall.selected}:${recall.done}`;if(key!==eventKey){eventKey=key;phase=0}if(!paused)phase+=dt*(.5+decay*.012);if(q!==recall.q){q=recall.q;net=geometry(q)}yaw+=(camera.current.yaw-yaw)*.16;pitch+=(camera.current.pitch-pitch)*.16;zoom+=(target-zoom)*.16
- g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);const scale=Math.min(w*.35,h*.40)*zoom,cx=w*.51,cy=h*(w<400?.46:.48),ry=yaw+Math.sin(t*.095)*.14,rx=pitch+.07*Math.sin(t*.12),sy=Math.sin(ry),ay=Math.cos(ry),sx=Math.sin(rx),ax=Math.cos(rx);function project(v:V){const x=v[0]*ay+v[2]*sy,z=v[2]*ay-v[0]*sy,y=v[1]*ax-z*sx,d=v[1]*sx+z*ax,k=4/(4-d);return [cx+x*k*scale,cy+y*k*scale,k]}
- function dot(x:number,y:number,r:number,color:string){g.fillStyle=color;g.beginPath();g.arc(x,y,r,0,tau);g.fill()}
- function glow(x:number,y:number,r:number,rgb:string,f:number){const a=g.createRadialGradient(x,y,0,x,y,r);a.addColorStop(0,`rgba(${rgb},${f})`);a.addColorStop(.22,`rgba(${rgb},${f*.36})`);a.addColorStop(1,`rgba(${rgb},0)`);g.fillStyle=a;g.fillRect(x-r,y-r,r*2,r*2)}
- for(const [u,v,s,p] of stars){const x=((u*w+Math.sin(ry)*s*28+w)%w),y=((v*h+Math.sin(rx)*s*19+h)%h),alpha=.13+s*.58+.1*Math.sin(t+p*10);dot(x,y,.35+s*.85,`rgba(208,220,233,${alpha})`);if(s>.986){g.fillStyle='#dae5ee71';g.fillRect(x-3,y-.35,6,.7);g.fillRect(x-.35,y-3,.7,6)}}
- const active=recall.done?recall.question.right:recall.selected;glow(cx,cy,scale*.8,'148,173,72',.17);const modulation=mode===1?.83:mode===2?1.1:1;const pts=net.points.map((v,i)=>project([v[0],v[1]*modulation+(mode===2?.09*Math.sin(i*.25+t)*Math.abs(v[0]):0),v[2]]));
- for(const [i,j,b] of net.links){const p=pts[i],n=pts[j],lit=b===active;g.strokeStyle=lit?'rgba(198,244,50,.77)':`rgba(171,190,144,${.21+Math.max(0,.42-Math.abs(net.points[j][0])*.4)})`;g.lineWidth=lit?1.15:.7;g.beginPath();g.moveTo(p[0],p[1]);g.lineTo(n[0],n[1]);g.stroke();if(lit&&j%3===0){const f=(t*(recall.done?.85:.55)+j*.13)%1;dot(p[0]+(n[0]-p[0])*f,p[1]+(n[1]-p[1])*f,1.65,'#edff9f')}}
- for(let i=1;i<pts.length;i++){const [x,y,k]=pts[i],r=(i%7===0?3.1:i%3===0?1.8:1.0)*k,lit=net.branches[i-1]===active; if(r>2.4)glow(x,y,r*4,lit?'191,243,56':'188,211,171',.38);dot(x,y,r,lit?'#c6f432':i%7===0?'#d5dec4':'#98a989')}
- for(const v of dust){const [x,y,k]=project(v);dot(x,y,k*.7,`rgba(199,231,115,${.25+k*.22})`)}
- const core=scale*.145;glow(cx,cy,core*3.6,'182,233,49',.52);for(let j=0;j<5;j++){g.beginPath();for(let i=0;i<=96;i++){const a=i*tau/96,r=.145+.015*Math.sin(a*5+j+t*.5);const p=project([Math.cos(a)*r,Math.sin(a)*r*Math.cos(j*.69),Math.sin(a)*r*Math.sin(j*.69)]);if(!i)g.moveTo(p[0],p[1]);else g.lineTo(p[0],p[1])}g.strokeStyle=`rgba(207,245,121,${.42+j*.065})`;g.lineWidth=.8;g.stroke()}glow(cx,cy,core*.95,'211,255,80',.97);dot(cx,cy,core*.18,'#edffb0');
- if(active!==null&&phase<1){g.strokeStyle=`rgba(198,244,50,${(1-phase)*.65})`;g.beginPath();g.arc(cx,cy,core+phase*scale,0,tau);g.stroke()}
- net.tips.forEach((n,i)=>{const [x,y]=pts[n],lit=active===i;glow(x,y,lit?23:15,lit?'188,243,41':'211,223,214',.55);dot(x,y,lit?4:3,lit?'#c6f432':'#e7e9df');g.beginPath();g.arc(x,y,lit?8:6,0,tau);g.strokeStyle=lit?'#c6f432':'#bfc7b177';g.stroke();const pin=pins.children[i] as HTMLElement;if(pin){const dx=x<cx?-pin.offsetWidth-7:7;pin.style.transform=`translate(${Math.max(0,Math.min(w-pin.offsetWidth,x+dx))}px,${Math.max(0,Math.min(h-34,y-15))}px)`}})
- }id=requestAnimationFrame(frame);return()=>{cancelAnimationFrame(id);ro.disconnect();canvas.removeEventListener('pointerdown',down);canvas.removeEventListener('pointermove',move);canvas.removeEventListener('lostpointercapture',up);canvas.removeEventListener('wheel',wheel)}
+import * as T from "three";
+import { canvasField } from "./canvas-field";
+import type { RefObject } from "react";
+import type { Recall } from "./use-recall";
+type Config = {
+  recall: Recall;
+  mode: number;
+  paused: boolean;
+  zoom: number;
+  level: () => number;
+};
+const TAU = Math.PI * 2,
+  lime = 0xc6f432;
+function rng(seed: number) {
+  return () =>
+    (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
+}
+function dispose(root: T.Object3D) {
+  root.traverse((o) => {
+    if (o instanceof T.Mesh || o instanceof T.Line || o instanceof T.Points) {
+      o.geometry.dispose();
+      for (const mat of [o.material].flat()) mat.dispose();
+    }
+  });
+}
+function line(points: T.Vector3[], color: number, opacity: number) {
+  return new T.Line(
+    new T.BufferGeometry().setFromPoints(points),
+    new T.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+    }),
+  );
+}
+function halo(size: number) {
+  const mat = new T.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: T.AdditiveBlending,
+    uniforms: { tint: { value: new T.Color(lime) } },
+    vertexShader:
+      "varying vec2 coord; void main(){coord=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+    fragmentShader:
+      "varying vec2 coord; uniform vec3 tint; void main(){float r=length(coord-.5)*2.;gl_FragColor=vec4(tint,pow(max(0.,1.-r),3.)*.8);}",
+  });
+  return new T.Mesh(new T.PlaneGeometry(size, size), mat);
+}
+export function mountField(
+  canvas: HTMLCanvasElement,
+  pins: HTMLDivElement,
+  config: RefObject<Config>,
+  view: RefObject<{ yaw: number; pitch: number }>,
+  fallback: () => void,
+) {
+  const gl = canvas.getContext("webgl2", { alpha: true, antialias: true });
+  if (!gl && !canvas.getContext("2d")) {
+    fallback();
+    return;
+  }
+  const renderer = gl
+    ? new T.WebGLRenderer({ canvas, context: gl, alpha: true, antialias: true })
+    : canvasField(canvas);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const scene = new T.Scene(),
+    camera = new T.OrthographicCamera(-4, 4, 2.5, -2.5, 0.1, 50);
+  camera.position.z = 10;
+  camera.updateMatrixWorld();
+  let field = new T.Group(),
+    network = new T.Group(),
+    hubs: T.Group[] = [],
+    centers: T.Vector3[] = [],
+    deckKey = "",
+    id = 0,
+    w = 1,
+    h = 1,
+    t = 0,
+    last = performance.now(),
+    stamp = 0,
+    answeredAt = -10000;
+  const pos = new T.Vector3(),
+    inv = new T.Quaternion();
+  scene.add(field);
+  field.add(network);
+  function rebuild(key: string) {
+    scene.remove(field);
+    dispose(field);
+    field = new T.Group();
+    network = new T.Group();
+    field.add(network);
+    scene.add(field);
+    hubs = [];
+    centers = [];
+    let seed = 1357;
+    for (const c of key) seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
+    const rand = rng(seed),
+      nodes = config.current.recall.nodes,
+      n = nodes.length;
+    const dust: T.Vector3[] = [],
+      stars: T.Vector3[] = [];
+    for (let i = 0; i < 1150; i++)
+      stars.push(
+        new T.Vector3(
+          (rand() - 0.5) * 18,
+          (rand() - 0.5) * 11,
+          -2 - rand() * 5,
+        ),
+      );
+    field.add(
+      new T.Points(
+        new T.BufferGeometry().setFromPoints(stars),
+        new T.PointsMaterial({
+          color: 0xadb4a9,
+          size: 0.009,
+          transparent: true,
+          opacity: 0.64,
+        }),
+      ),
+    );
+    function nucleus(radius: number, index: number) {
+      const g = new T.Group(),
+        geo = new T.IcosahedronGeometry(radius, 2),
+        wire = new T.LineSegments(
+          new T.WireframeGeometry(geo),
+          new T.LineBasicMaterial({
+            color: index < 0 ? lime : 0xbcc79e,
+            transparent: true,
+            opacity: 0.48,
+          }),
+        );
+      geo.dispose();
+      g.add(wire);
+      const glow = halo(radius * 5.8);
+      g.add(glow);
+      g.userData.glow = glow;
+      return g;
+    }
+    const core = nucleus(0.41, -1);
+    network.add(core);
+    network.userData.core = core;
+    nodes.forEach((_, i) => {
+      const a = (TAU * i) / n - 0.28,
+        r = 1 + (i % 3) * 0.09,
+        c = new T.Vector3(
+          Math.cos(a) * 2.55 * r,
+          Math.sin(a) * 1.22 * r,
+          (rand() - 0.5) * 0.95,
+        );
+      centers.push(c);
+      const hub = nucleus(0.115 + rand() * 0.05, i);
+      hub.position.copy(c);
+      hubs.push(hub);
+      network.add(hub);
+      for (let j = 0; j < 14; j++) {
+        const pts: T.Vector3[] = [],
+          bend = (rand() - 0.5) * 0.8;
+        for (let k = 0; k <= 22; k++) {
+          const u = k / 22,
+            s = Math.sin(Math.PI * u),
+            spread = s * (0.05 + rand() * 0.11);
+          const v = c.clone().multiplyScalar(u);
+          v.x += s * bend * 0.45 + (rand() - 0.5) * spread;
+          v.y += s * bend + (rand() - 0.5) * spread;
+          v.z += s * (rand() - 0.5) * 0.42;
+          pts.push(v);
+          if (rand() > 0.35)
+            dust.push(
+              v
+                .clone()
+                .add(
+                  new T.Vector3(
+                    (rand() - 0.5) * 0.17,
+                    (rand() - 0.5) * 0.17,
+                    (rand() - 0.5) * 0.2,
+                  ),
+                ),
+            );
+        }
+        network.add(line(pts, j % 3 ? 0xc8cca6 : lime, 0.16 + rand() * 0.22));
+      }
+    });
+    centers.forEach((v, i) => {
+      const next = centers[(i + 1) % n];
+      network.add(line([v, next], 0xa8b58c, 0.25));
+      if (i % 2 === 0)
+        network.add(line([v, centers[(i + 2) % n]], 0xa8b58c, 0.16));
+    });
+    for (let i = 0; i < 800; i++) {
+      const a = rand() * TAU,
+        b = Math.acos(2 * rand() - 1),
+        r = 0.38 + rand() ** 2 * 0.6;
+      dust.push(
+        new T.Vector3(
+          r * Math.sin(b) * Math.cos(a),
+          r * Math.sin(b) * Math.sin(a),
+          r * Math.cos(b),
+        ),
+      );
+    }
+    network.add(
+      new T.Points(
+        new T.BufferGeometry().setFromPoints(dust),
+        new T.PointsMaterial({
+          size: 0.014,
+          color: 0xe0efaf,
+          transparent: true,
+          opacity: 0.72,
+        }),
+      ),
+    );
+    for (let i = 0; i < 3; i++) {
+      const pts = Array.from(
+        { length: 161 },
+        (_, j) =>
+          new T.Vector3(
+            Math.cos((j / 160) * TAU) * (3 + i * 0.14),
+            Math.sin((j / 160) * TAU) * (1.42 + i * 0.08),
+            0,
+          ),
+      );
+      const orbit = line(pts, 0x8a937b, 0.14);
+      orbit.rotation.set(0.3 * i, 0.12 * i, (i - 1) * 0.2);
+      network.add(orbit);
+    }
+  }
+  function resize() {
+    w = canvas.clientWidth;
+    h = canvas.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    const half = Math.max(1.95, (3.9 * h) / w);
+    camera.left = (-half * w) / h;
+    camera.right = -camera.left;
+    camera.top = half;
+    camera.bottom = -half;
+    camera.updateProjectionMatrix();
+  }
+  const observer = new ResizeObserver(resize);
+  observer.observe(canvas);
+  resize();
+  function frame(now: number) {
+    id = requestAnimationFrame(frame);
+    const { recall: r, paused, zoom, mode, level } = config.current,
+      dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (document.hidden || !w || !h) return;
+    if (!paused) t += dt;
+    const key = r.nodes.map((n) => n.id + n.title).join("|");
+    if (key !== deckKey) {
+      deckKey = key;
+      rebuild(key);
+    }
+    if (!hubs.length) return;
+    const audio = mode === 2 ? level() : 0;
+    network.scale.setScalar(zoom * (1 + audio * 0.085));
+    network.rotation.set(
+      view.current.pitch + Math.sin(t * 0.13) * 0.06,
+      view.current.yaw + Math.sin(t * 0.09) * 0.19,
+      -0.075,
+    );
+    const core = network.userData.core as T.Group;
+    core.rotation.y = t * 0.07;
+    core.scale.setScalar(1 + audio * 0.45);
+    const event = r.node?.lastReviewed ?? 0;
+    if (event !== stamp) {
+      stamp = event;
+      answeredAt = event ? now : -10000;
+    }
+    const age = (now - answeredAt) / 1000,
+      pulse = r.done ? Math.max(0, 1 - age / 1.25) : 0,
+      correct = r.selected === r.node?.quiz?.correctIndex;
+    network.updateMatrixWorld(true);
+    hubs.forEach((hub, i) => {
+      const value = (r.values[i] ?? 0) / 100,
+        p = i === r.q ? pulse : 0;
+      hub.scale.setScalar(0.45 + 0.72 * value + (correct ? p * 0.95 : 0));
+      hub.position.x =
+        centers[i].x + (!correct ? Math.sin(age * 55) * p * 0.09 : 0);
+      const selected = r.panel && i === r.q,
+        tint = p && !correct ? 0xff7474 : selected || p ? lime : 0xd8dec5;
+      const wire = hub.children[0] as T.LineSegments<
+        T.BufferGeometry,
+        T.LineBasicMaterial
+      >;
+      wire.material.color.setHex(tint);
+      wire.material.opacity = 0.12 + 0.7 * value;
+      const glow = hub.userData.glow as T.Mesh<
+        T.PlaneGeometry,
+        T.ShaderMaterial
+      >;
+      glow.material.uniforms.tint.value
+        .setHex(tint)
+        .multiplyScalar(0.12 + value * 0.7 + p * 1.5);
+      hub.getWorldQuaternion(inv);
+      glow.quaternion.copy(inv.invert());
+      hub.getWorldPosition(pos).project(camera);
+      const pin = pins.children[i] as HTMLElement;
+      if (pin) {
+        pin.style.left = `${(pos.x * 0.5 + 0.5) * 100}%`;
+        pin.style.top = `${(-pos.y * 0.5 + 0.5) * 100}%`;
+        pin.style.setProperty("--intensity", String(0.55 + value * 0.45));
+        pin.dataset.side = pos.x < 0 ? "left" : "right";
+      }
+    });
+    renderer.render(scene, camera);
+  }
+  id = requestAnimationFrame(frame);
+  return () => {
+    cancelAnimationFrame(id);
+    observer.disconnect();
+    dispose(scene);
+    renderer.dispose();
+  };
 }
