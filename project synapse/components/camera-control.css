@@ -1,1 +1,115 @@
-.cam-dock{position:absolute;top:22px;right:6px;width:180px;z-index:3;border:1px solid #393c40;border-radius:11px;background:linear-gradient(120deg,#1b1e20f0,#111315f5);backdrop-filter:blur(16px);box-shadow:0 5px 20px #0003}.cam-toggle{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;text-align:left}.cam-toggle>svg{margin-left:auto;color:#a7adac}.cam-icon{display:grid;place-items:center;width:31px;height:31px;border:1px solid #414547;background:#222527;border-radius:7px;color:#dbe0dc}.cam-icon.is-live{color:var(--lime)}.cam-toggle small,.cam-title small{display:block;font:8px ui-monospace,monospace;letter-spacing:1.15px;color:#a4aba8}.cam-toggle strong{display:block;font-size:13px;font-weight:550}.cam-guide{position:absolute;top:calc(100% + 6px);right:0;width:min(270px,90vw);border:1px solid #3a3e40;border-radius:11px;background:#131618fa;padding:14px;box-shadow:0 9px 26px #0008;max-height:min(370px,65svh);overflow-y:auto}.cam-title,.cam-live,.cam-live span,.cam-private,.cam-action,.cam-row{display:flex;align-items:center;gap:8px}.cam-title,.cam-live{justify-content:space-between}.cam-title button,.cam-live button{padding:4px;color:#c3c9c5}.cam-row{align-items:flex-start;margin:12px 0;gap:10px}.cam-row>svg{width:16px;height:16px;flex:none;margin-top:2px;color:#b9c2bc}.cam-row b{font-size:12px;font-weight:550}.cam-row p,.cam-error{font-size:11px;line-height:1.45;color:#b0b7b2}.cam-private{font-size:10px;color:#b4bcb8;border-top:1px solid #303538;padding:12px 0}.cam-action{width:100%;justify-content:center;border-radius:6px;background:var(--lime);color:#151910;padding:8px;font-size:12px;font-weight:600}.cam-error{padding:0 0 10px;color:#e3dfc6}.cam-live{border-top:1px solid #343838;padding:4px 8px;font:9px ui-monospace,monospace}.cam-preview{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}.cam-preview.show{position:relative;display:block;width:100%;height:76px;object-fit:cover;opacity:1;transform:scaleX(-1);border-radius:0 0 10px 10px}.hand-cursor{position:fixed;z-index:9999;pointer-events:none;transform:translate(-50%,-50%);width:22px;height:22px;border:2px solid var(--lime);border-radius:50%;box-shadow:0 0 0 2px #10141588,0 0 12px #c6f43244}.hand-cursor:after{content:'';position:absolute;inset:7px;background:white;border-radius:50%}.hand-cursor[data-held=true]{background:#c6f43266}.studio [data-hand-hover]:not(canvas){outline:2px solid var(--lime);outline-offset:2px}@media(max-width:900px){.cam-dock{top:105px;width:155px}}@media(max-width:640px){.cam-dock{top:0;right:0;width:145px}.cam-toggle{padding:6px 9px}.cam-icon{width:24px;height:24px}.cam-guide{max-height:280px}}
+.cam-dock {
+  position: absolute;
+  bottom: 20px;
+  right: 0;
+  z-index: 4;
+  font-size: 12px;
+}
+.cam-toggle,
+.cam-guide {
+  border: 1px solid #393b36;
+  border-radius: 10px;
+  background: #131412f5;
+}
+.cam-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+}
+.cam-toggle > svg:first-child {
+  color: var(--lime);
+}
+.cam-guide {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  width: min(270px, 89vw);
+  max-height: 65svh;
+  overflow: auto;
+  padding: 13px;
+  box-shadow: 0 12px 32px #0008;
+}
+.cam-guide small {
+  font: 9px monospace;
+  letter-spacing: 1.3px;
+  color: #bbbfb7;
+}
+.cam-guide b {
+  color: var(--lime);
+}
+.cam-feed {
+  position: relative;
+  aspect-ratio: 1.8;
+  overflow: hidden;
+  background: #0b0b0c;
+  margin: 9px 0;
+  border: 1px solid #30332d;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+}
+.cam-feed video,
+.cam-feed canvas {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+  object-fit: contain;
+  transform: scaleX(-1);
+}
+.cam-feed > svg {
+  color: #62675b;
+}
+.cam-feed span {
+  position: absolute;
+  bottom: 5px;
+  left: 7px;
+  background: #111b;
+  padding: 2px 5px;
+  font: 10px monospace;
+  color: #e0e3d8;
+}
+.cam-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: var(--lime);
+  color: #111;
+  width: 100%;
+  padding: 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.sim {
+  border-top: 1px solid #343731;
+  margin-top: 11px;
+  padding-top: 9px;
+}
+.cam-guide p {
+  font-size: 11px;
+  color: #b9bdb3;
+  margin: 6px 0;
+}
+.sim > div {
+  display: flex;
+  gap: 4px;
+}
+.sim button {
+  flex: 1;
+  border: 1px solid #43473e;
+  border-radius: 4px;
+  padding: 5px 3px;
+}
+.sim button:hover {
+  color: var(--lime);
+  border-color: var(--lime);
+}
+@media (max-width: 640px) {
+  .cam-dock {
+    position: relative;
+    align-self: flex-end;
+    bottom: auto;
+  }
+}
